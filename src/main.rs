@@ -6,7 +6,7 @@ use serde::{Serialize, Deserialize};
 #[tokio::main]
 async fn main() {
     let api_key = "1FGPYOV8MJGHJ1IC";
-    let symbol =  match std::env::args().skip(1).next() {
+    let symbol = match std::env::args().skip(1).next() {
         Some(arg) => arg,
         None => panic!("No argument given")
     }; 
