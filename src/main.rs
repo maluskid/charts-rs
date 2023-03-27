@@ -1,7 +1,15 @@
 extern crate reqwest;
 extern crate tokio;
-use std::collections::HashMap;
-use serde::{Serialize, Deserialize};
+mod stocks;
+use stocks::{display_stocks, get_stock, StockJson};
+
+enum Branch {
+    Symbol(String),
+    Add(Vec<String>),
+    Remove(Vec<String>),
+    List,
+    None
+}
 
 #[tokio::main]
 async fn main() {
@@ -23,7 +31,7 @@ async fn main() {
             let mut out: Vec<StockJson> = Vec::new();
             for symbol in symbols {
                 let url = format!("https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol={}&apikey={}", symbol, api_key);
-                match get_stock(url).await {
+                match gkt_stock(url).await {
                     Ok(s) => out.push(s),
                     Err(_) => println!("Fetching stock from API failed")
                 }
@@ -42,19 +50,13 @@ async fn main() {
         Branch::None => None
     };
 
-
 }
 
-enum Branch {
-    Symbol(String),
-    Add(Vec<String>),
-    Remove(Vec<String>),
-    List,
-    None
-}
+/// Function that takes command line arguments and returns a Branch.
+/// Branch items may contain a vector filled with stock tickers for
+/// later use in the program, depending on given command.
 
 fn parse_args(args: &mut Vec<String>) -> Branch {
-    
     if args.len() == 0 {
         println!("Usage:\n\tcharts-rs <symbol>\n\tcharts-rs add <symbol>\n\tcharts-rs list\n\tcharts-rs rm <symbol>");
         return Branch::None;
@@ -70,31 +72,10 @@ fn parse_args(args: &mut Vec<String>) -> Branch {
         },
         "list" => Branch::List,
         _ => {
-            if args.len() > 1 { panic!("Invalid argument. Try charts-rs -help for more info.")}
+            if args.len() > 1 { panic!("Invalid argument. Try charts-rs --help for more info.") }
             Branch::Symbol(args[0].clone())
         } 
     }
-
 }
 
-fn display_stocks(stocks: Vec<StockJson>) {
-    println!("Hello from display_stocks");
-}
 
-#[derive(Debug, Serialize, Deserialize)]
-struct StockJson {
-    #[serde(rename = "Global Quote")]
-    quote: HashMap<String, String>
-}
-
-async fn get_stock(url: String) -> Result<StockJson, Box<(dyn std::error::Error)>> {
-    
-    let stock: StockJson = reqwest::Client::new()
-        .get(url)
-        .send()
-        .await?
-        .json()
-        .await?;
-
-    Ok(stock)
-}
