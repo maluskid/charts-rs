@@ -5,29 +5,76 @@ use serde::{Serialize, Deserialize};
 
 #[tokio::main]
 async fn main() {
-    let mut stocks: Vec<StockJson> = Vec::new();
     let api_key = "1FGPYOV8MJGHJ1IC";
-
-    parse_args(std::env::args());
-
-    // replacing this with parse_args
-    let symbol = match std::env::args().skip(1).next() {
-        Some(arg) => arg,
-        None => panic!("No argument given")
-    };
-    // end code to be replaced
     
-    let url = format!("https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol={}&apikey={}", symbol, api_key);
-    let stock = match get_stock(url).await {
-        Ok(s) => s,
-        Err(_) => panic!("Fetching stock from API failed")
+    let mut args: Vec<String> = std::env::args().skip(1).collect();
+    match parse_args(&mut args) {
+        Branch::Symbol(symbol) => {
+            let url = format!("https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol={}&apikey={}", symbol, api_key);
+            match get_stock(url).await {
+                Ok(s) => Some(vec![s]),
+                Err(_) => {
+                    println!("Fetching stock from API failed");
+                    None
+                }
+            }
+        },
+        Branch::Add(symbols) => {
+            let mut out: Vec<StockJson> = Vec::new();
+            for symbol in symbols {
+                let url = format!("https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol={}&apikey={}", symbol, api_key);
+                match get_stock(url).await {
+                    Ok(s) => out.push(s),
+                    Err(_) => println!("Fetching stock from API failed")
+                }
+            }
+            if out.len() > 0 { Some(out) }
+            else { None }
+        },
+        Branch::Remove(symbols) => {
+            println!("TODO:\nRemove these symbols {:?}", symbols);
+            None
+        }
+        Branch::List => {
+            println!("TODO\n");
+            None
+        },
+        Branch::None => None
     };
-    stocks.push(stock);
-    display_stocks(stocks);
+
+
 }
 
-fn parse_args(args: std::env::Args) {
-    // return an enum with info about necessary follow up?
+enum Branch {
+    Symbol(String),
+    Add(Vec<String>),
+    Remove(Vec<String>),
+    List,
+    None
+}
+
+fn parse_args(args: &mut Vec<String>) -> Branch {
+    
+    if args.len() == 0 {
+        println!("Usage:\n\tcharts-rs <symbol>\n\tcharts-rs add <symbol>\n\tcharts-rs list\n\tcharts-rs rm <symbol>");
+        return Branch::None;
+    } 
+    match &*args[0] {
+        "add" => {
+            args.swap_remove(0);
+            Branch::Add(args.clone())
+        },
+        "rm" => {
+            args.swap_remove(0);
+            Branch::Remove(args.clone())
+        },
+        "list" => Branch::List,
+        _ => {
+            if args.len() > 1 { panic!("Invalid argument. Try charts-rs -help for more info.")}
+            Branch::Symbol(args[0].clone())
+        } 
+    }
+
 }
 
 fn display_stocks(stocks: Vec<StockJson>) {
@@ -42,7 +89,6 @@ struct StockJson {
 
 async fn get_stock(url: String) -> Result<StockJson, Box<(dyn std::error::Error)>> {
     
-    println!("Printing from get_stock: {}", url);
     let stock: StockJson = reqwest::Client::new()
         .get(url)
         .send()
@@ -50,6 +96,5 @@ async fn get_stock(url: String) -> Result<StockJson, Box<(dyn std::error::Error)
         .json()
         .await?;
 
-    println!("Printing from get_stock:\n{:#?}\n", stock);
     Ok(stock)
 }
