@@ -13,12 +13,14 @@ enum Branch {
 
 #[tokio::main]
 async fn main() {
-    let api_key = "1FGPYOV8MJGHJ1IC";
+
+    let snip0 = "https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=";
+    let snip1 = "&apikey=1FGPYOV8MJGHJ1IC";
     
     let mut args: Vec<String> = std::env::args().skip(1).collect();
-    match parse_args(&mut args) {
+    let stocks = match parse_args(&mut args) {
         Branch::Symbol(symbol) => {
-            let url = format!("https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol={}&apikey={}", symbol, api_key);
+            let url = format!("{}{}{}", snip0, symbol, snip1);
             match get_stock(url).await {
                 Ok(s) => Some(vec![s]),
                 Err(_) => {
@@ -30,8 +32,8 @@ async fn main() {
         Branch::Add(symbols) => {
             let mut out: Vec<StockJson> = Vec::new();
             for symbol in symbols {
-                let url = format!("https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol={}&apikey={}", symbol, api_key);
-                match gkt_stock(url).await {
+                let url = format!("{}{}{}", snip0, symbol, snip1);
+                match get_stock(url).await {
                     Ok(s) => out.push(s),
                     Err(_) => println!("Fetching stock from API failed")
                 }
@@ -49,7 +51,7 @@ async fn main() {
         },
         Branch::None => None
     };
-
+    if stocks.is_some() { display_stocks(stocks.unwrap()); }
 }
 
 /// Function that takes command line arguments and returns a Branch.
