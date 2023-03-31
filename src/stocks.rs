@@ -29,15 +29,15 @@ pub fn display_stocks(stocks: Vec<StockJson>) {
         headers[4]
     );
     for item in headers {
+        print!("\t");
         for _ in 0..item.len() {
             print!("{dash}");
         }
-        print!("\t");
     }
     print!("\n");
 
     for stock in stocks {
-        let mut s = String::new();
+        let mut s = String::from("\t");
         let default = String::from("N/A");
         for i in 0..headers.len() {
             s.push(' ');
