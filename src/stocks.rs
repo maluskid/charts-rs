@@ -4,14 +4,7 @@ use serde::{Serialize, Deserialize};
 
 pub fn display_stocks(stocks: Vec<StockJson>) {
 
-    let dash = '\u{23AF}';
-    let mut h_line = String::new();
-    h_line.push('\n');
-    for _ in 0..45 {
-        h_line.push(dash);
-    }
-    h_line.push('\n');
-
+    let dash = '-';
     let headers = [
         " Symbol ",
         " Price  ",  
@@ -28,20 +21,25 @@ pub fn display_stocks(stocks: Vec<StockJson>) {
         (headers[4],  "10. change percent")
     ]);
 
-    print!("{h_line}");
-    print!("|{}|{}|{}|{}|{}|",
+    print!("\t{}\t{}\t{}\t{}\t{}\n",
         headers[0],
         headers[1],
         headers[2],
         headers[3],
         headers[4]
     );
-    print!("{h_line}");
+    for item in headers {
+        for _ in 0..item.len() {
+            print!("{dash}");
+        }
+        print!("\t");
+    }
+    print!("\n");
 
     for stock in stocks {
-        let mut s = String::from('|');
+        let mut s = String::new();
         let default = String::from("N/A");
-        for i in 0..5 {
+        for i in 0..headers.len() {
             s.push(' ');
             let key = header_map
                 .get(headers[i])
@@ -62,9 +60,9 @@ pub fn display_stocks(stocks: Vec<StockJson>) {
             if value.len() < 7 {
                 for _ in 0..(7 - value.len()) { s.push(' '); }
             }
-            s.push('|');
+            s.push('\t');
         }
-        print!("{s}{h_line}");
+        print!("{s}\n");
     }
 }
 
