@@ -1,6 +1,7 @@
 extern crate reqwest;
 extern crate tokio;
 mod stocks;
+use std::fs::File;
 use stocks::{display_stocks, get_stock, StockJson};
 
 enum Branch {
@@ -80,4 +81,17 @@ fn parse_args(args: &mut Vec<String>) -> Branch {
     }
 }
 
+fn append_list(symbols: Vec<String>) -> () {
+
+    // wtf is rusts file io api
+    let mut list = match File::options().read(true).append(true).create(true) {
+        Ok(file) => file,
+        Err(e) => {
+            print!("Error opening list.txt: {e}\nCreating new list");
+        }
+    };
+    for symbol in symbols {
+
+    }
+}
 
