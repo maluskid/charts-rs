@@ -1,7 +1,8 @@
 extern crate reqwest;
 extern crate tokio;
 mod stocks;
-use std::fs::File;
+use std::io::prelude::*;
+use std::fs::{ File, OpenOptions };
 use stocks::{display_stocks, get_stock, StockJson};
 
 enum Branch {
@@ -31,6 +32,7 @@ async fn main() {
             }
         },
         Branch::Add(symbols) => {
+            append_list(symbols);
             let mut out: Vec<StockJson> = Vec::new();
             for symbol in symbols {
                 let url = format!("{}{}{}", snip0, symbol, snip1);
@@ -48,7 +50,17 @@ async fn main() {
         }
         Branch::List => {
             println!("TODO\n");
-            None
+            let symbols = read_list();
+            let mut out: Vec<StockJson> = Vec::new();
+            for symbol in symbols {
+                let url = format!("{}{}{}", snip0, symbol, snip1);
+                match get_stock(url).await {
+                    Ok(s) => out.push(s),
+                    Err(_) => println!("Fetching stock from API failed")
+                }
+            }
+            if out.len() > 0 { Some(out) }
+            else { None }
         },
         Branch::None => None
     };
@@ -81,17 +93,46 @@ fn parse_args(args: &mut Vec<String>) -> Branch {
     }
 }
 
-fn append_list(symbols: Vec<String>) -> () {
+/// Function to open the stored watchlist or create one if none exists
+/// returns the opened file for further editing
+fn open_list() -> File {
+    let out = match OpenOptions::new()
+        .read(true)
+        .append(true)
+        .create(true)
+        .open("list.txt") {
+            Ok(f) => f,
+            Err(e) => panic!("Error {e} opening file.")
+        };
+    out
+}
 
-    // wtf is rusts file io api
-    let mut list = match File::options().read(true).append(true).create(true) {
-        Ok(file) => file,
-        Err(e) => {
-            print!("Error opening list.txt: {e}\nCreating new list");
-        }
-    };
+fn append_list(symbols: Vec<String>) -> Result<(), std::io::Error> {
+    let mut list = open_list();
     for symbol in symbols {
+        list.write(symbol.as_bytes())?;
+        list.write(b"\t")?;
+    } 
+    Ok(())
+}
 
+
+// Possibly rewrite append_list and read_list to OpenOptions with their own relevant
+// options and delete open_list
+fn read_list() -> Vec<String> {
+    let mut list = open_list();
+    let out: Vec<String> = Vec::new();
+    let mut s = String::new();
+    let contents = match list.read_to_string(&mut s) {
+        Ok(num) => s.as_str(),
+        Err(e) => panic!("Error {e} reading from file.")
+    };
+    loop {
+        let index = match contents.find('\t') {
+            Some(num) => num,
+            None => 0
+        };
     }
+    
 }
 
