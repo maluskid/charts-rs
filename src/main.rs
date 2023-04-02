@@ -93,22 +93,14 @@ fn parse_args(args: &mut Vec<String>) -> Branch {
     }
 }
 
-/// Function to open the stored watchlist or create one if none exists
-/// returns the opened file for further editing
-fn open_list() -> File {
-    let out = match OpenOptions::new()
-        .read(true)
+fn append_list(symbols: Vec<String>) -> Result<(), std::io::Error> {
+    let list = match OpenOptions::new()
         .append(true)
         .create(true)
         .open("list.txt") {
             Ok(f) => f,
             Err(e) => panic!("Error {e} opening file.")
         };
-    out
-}
-
-fn append_list(symbols: Vec<String>) -> Result<(), std::io::Error> {
-    let mut list = open_list();
     for symbol in symbols {
         list.write(symbol.as_bytes())?;
         list.write(b"\t")?;
@@ -117,22 +109,34 @@ fn append_list(symbols: Vec<String>) -> Result<(), std::io::Error> {
 }
 
 
-// Possibly rewrite append_list and read_list to OpenOptions with their own relevant
-// options and delete open_list
-fn read_list() -> Vec<String> {
-    let mut list = open_list();
-    let out: Vec<String> = Vec::new();
+fn read_list() -> std::option::Option<Vec<String>> {
+    let mut list = match OpenOptions::new()
+        .read(true)
+        .create(true)
+        .open("list.txt") {
+            Ok(f) => f,
+            Err(e) => panic!("Error {e} opening file.")
+        };
+    let mut out: Option<Vec<String>> = None;
     let mut s = String::new();
-    let contents = match list.read_to_string(&mut s) {
-        Ok(num) => s.as_str(),
+    let contents: Option<&str> = match list.read_to_string(&mut s) {
+        Ok(0) => None,
+        Ok(_) => Some(s.as_str()),
         Err(e) => panic!("Error {e} reading from file.")
     };
     loop {
-        let index = match contents.find('\t') {
-            Some(num) => num,
+        let index: usize = match contents {
+            Some(slice) => {
+                slice.find('\t').unwrap_or(0)
+            },
             None => 0
         };
-    }
-    
+        if index == 0 { break; }
+        out = Some(contents
+            .unwrap()
+            .split('\t')
+            .collect());
+    } 
+    out
 }
 
