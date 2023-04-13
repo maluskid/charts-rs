@@ -2,9 +2,12 @@ extern crate reqwest;
 extern crate tokio;
 mod stocks;
 use std::io::prelude::*;
-use std::fs::{ File, OpenOptions };
+use std::fs::OpenOptions;
 use stocks::{display_stocks, get_stock, StockJson};
 
+/// Branch is an enum which branches the main function depending upon
+/// the arguments passed to the program. If an argument is followed by
+/// more arguments, they will be contained within that enumeration.
 enum Branch {
     Symbol(String),
     Add(Vec<String>),
@@ -12,6 +15,7 @@ enum Branch {
     List,
     None
 }
+
 
 #[tokio::main]
 async fn main() {
@@ -32,17 +36,13 @@ async fn main() {
             }
         },
         Branch::Add(symbols) => {
-            append_list(symbols);
-            let mut out: Vec<StockJson> = Vec::new();
-            for symbol in symbols {
-                let url = format!("{}{}{}", snip0, symbol, snip1);
-                match get_stock(url).await {
-                    Ok(s) => out.push(s),
-                    Err(_) => println!("Fetching stock from API failed")
+            match append_list(symbols) {
+                Ok(()) => None,
+                Err(_) => {
+                    println!("Error appending symbols to list.\n");
+                    None
                 }
             }
-            if out.len() > 0 { Some(out) }
-            else { None }
         },
         Branch::Remove(symbols) => {
             println!("TODO:\nRemove these symbols {:?}", symbols);
@@ -50,17 +50,25 @@ async fn main() {
         }
         Branch::List => {
             println!("TODO\n");
-            let symbols = read_list();
             let mut out: Vec<StockJson> = Vec::new();
-            for symbol in symbols {
-                let url = format!("{}{}{}", snip0, symbol, snip1);
-                match get_stock(url).await {
-                    Ok(s) => out.push(s),
-                    Err(_) => println!("Fetching stock from API failed")
+            match read_list() {
+                Some(list) => {
+                    for symbol in list {
+                        let url = format!("{}{}{}", snip0, symbol, snip1);
+                        match get_stock(url).await {
+                            Ok(s) => out.push(s),
+                            Err(_) => {
+                                println!("Fetching stock from API failed");
+                            }
+                        }
+                    }
+                    Some(out)
+                },
+                None => {
+                    println!("List not found...\n");
+                    None
                 }
             }
-            if out.len() > 0 { Some(out) }
-            else { None }
         },
         Branch::None => None
     };
@@ -93,14 +101,9 @@ fn parse_args(args: &mut Vec<String>) -> Branch {
     }
 }
 
+
 fn append_list(symbols: Vec<String>) -> Result<(), std::io::Error> {
-    let list = match OpenOptions::new()
-        .append(true)
-        .create(true)
-        .open("list.txt") {
-            Ok(f) => f,
-            Err(e) => panic!("Error {e} opening file.")
-        };
+    let mut list = OpenOptions::new().append(true).create(true).open("list.txt")?;
     for symbol in symbols {
         list.write(symbol.as_bytes())?;
         list.write(b"\t")?;
@@ -110,33 +113,28 @@ fn append_list(symbols: Vec<String>) -> Result<(), std::io::Error> {
 
 
 fn read_list() -> std::option::Option<Vec<String>> {
-    let mut list = match OpenOptions::new()
-        .read(true)
-        .create(true)
-        .open("list.txt") {
-            Ok(f) => f,
-            Err(e) => panic!("Error {e} opening file.")
-        };
-    let mut out: Option<Vec<String>> = None;
+    let mut list = match OpenOptions::new().read(true).create(true).open("list.txt") {
+        Ok(f) => f,
+        Err(e) => {
+            println!("Error {e} opening file.");
+            return None
+        }
+    };
     let mut s = String::new();
     let contents: Option<&str> = match list.read_to_string(&mut s) {
         Ok(0) => None,
         Ok(_) => Some(s.as_str()),
         Err(e) => panic!("Error {e} reading from file.")
     };
-    loop {
-        let index: usize = match contents {
-            Some(slice) => {
-                slice.find('\t').unwrap_or(0)
-            },
-            None => 0
-        };
-        if index == 0 { break; }
-        out = Some(contents
-            .unwrap()
-            .split('\t')
-            .collect());
-    } 
-    out
+    match contents {
+        Some(slice) => {
+            let mut parsed_contents: Vec<String> = Vec::new();
+            for item in slice.split('\t') {
+                parsed_contents.push(item.to_owned());
+            }
+            Some(parsed_contents)
+        },
+        None => None
+    }
 }
 
