@@ -28,6 +28,7 @@ pub fn display_stocks(stocks: Vec<StockJson>) {
         headers[3],
         headers[4]
     );
+
     for item in headers {
         print!("\t");
         for _ in 0..item.len() {
@@ -72,7 +73,7 @@ pub struct StockJson {
     quote: HashMap<String, String>
 }
 
-pub async fn get_stock(url: String) -> Result<StockJson, Box<(dyn std::error::Error)>> {
+pub async fn get_stock(url: String) -> Result<StockJson, Box<reqwest::Error>> {
     let stock: StockJson = reqwest::Client::new()
         .get(url)
         .send()
@@ -81,3 +82,4 @@ pub async fn get_stock(url: String) -> Result<StockJson, Box<(dyn std::error::Er
         .await?;
     Ok(stock)
 }
+
