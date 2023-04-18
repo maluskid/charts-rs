@@ -1,6 +1,7 @@
 extern crate reqwest;
 extern crate tokio;
 mod stocks;
+use std::io::{Error,ErrorKind};
 use std::io::prelude::*;
 use std::fs::OpenOptions;
 use stocks::{display_stocks, get_stock, StockJson};
@@ -29,6 +30,7 @@ async fn main() {
             retrieve_list(symbols).await
         },
         Branch::Add(symbols) => {
+            // Append symbols received as arguments to add command to the list
             match append_list(symbols) {
                 Ok(()) => None,
                 Err(_) => {
@@ -38,6 +40,8 @@ async fn main() {
             }
         },
         Branch::Remove(symbols) => {
+            // Attempt to remove symbols received as arguments to remove 
+            // command from list file.
             match edit_list(symbols) {
                 Ok(()) => None,
                 Err(e) => {
@@ -88,7 +92,7 @@ fn parse_args(args: &mut Vec<String>) -> Branch {
 }
 
 
-fn append_list(symbols: Vec<String>) -> Result<(), std::io::Error> {
+fn append_list(symbols: Vec<String>) -> Result<(), Error> {
     let mut list = OpenOptions::new().append(true).create(true).open("list.txt")?;
     for symbol in symbols {
         list.write(symbol.as_bytes())?;
@@ -97,22 +101,25 @@ fn append_list(symbols: Vec<String>) -> Result<(), std::io::Error> {
     Ok(())
 }
 
-fn edit_list(symbols: Vec<String>) -> Result<(), std::io::Error> {
+fn edit_list(symbols: Vec<String>) -> Result<(), Error> {
     let mut list = OpenOptions::new().write(true).open("list.txt")?;
     let mut s = String::new();
-    let contents: Option<&str> = match list.read_to_string(&mut s) {
+    let contents: Option<String> = match list.read_to_string(&mut s) {
         Ok(0) => None,
-        Ok(_) => Some(s.as_str()),
-        Err(e) => panic!("Error {e} reading from file.")
+        Ok(_) => Some(s.as_str().to_owned()),
+        Err(e) => panic!("Error {e} reading from file."),
     };
+    if contents.is_none() {
+        return Err(Error::new(ErrorKind::InvalidData, "File was empty!"));
+    }
     for symbol in symbols {
     }
     Ok(())
 }
 
 
-fn read_list() -> std::option::Option<Vec<String>> {
-    let mut list = match OpenOptions::new().read(true).open("list.txt") {
+fn read_list() -> std::option::Option<Vec<String>> {“Velocity is crucial in marketing. The more campaigns we can put together, the more pages we can create, the bigger we feel, and the more touch points we have with customers. Webflow unlocks that for us and allows us to do more with less.”
+    let mut list = match OpenOptions::new().read(true).open("list.txt") {“Velocity is crucial in marketing. The more campaigns we can put together, the more pages we can create, the bigger we feel, and the more touch points we have with customers. Webflow unlocks that for us and allows us to do more with less.”
         Ok(f) => f,
         Err(e) => {
             println!("Error {e} opening file.");
