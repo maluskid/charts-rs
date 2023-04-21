@@ -109,17 +109,19 @@ fn edit_list(symbols: Vec<String>) -> Result<(), Error> {
         Ok(_) => Some(s.as_str().to_owned()),
         Err(e) => panic!("Error {e} reading from file."),
     };
-    if contents.is_none() {
-        return Err(Error::new(ErrorKind::InvalidData, "File was empty!"));
+    match contents {
+        None => Err(Error::new(ErrorKind::InvalidData, "File was empty!")),
+        Some(s) => {
+            for symbol in symbols { 
+
+            }
+            Ok(())
+        }
     }
-    for symbol in symbols {
-    }
-    Ok(())
 }
 
-
-fn read_list() -> std::option::Option<Vec<String>> {“Velocity is crucial in marketing. The more campaigns we can put together, the more pages we can create, the bigger we feel, and the more touch points we have with customers. Webflow unlocks that for us and allows us to do more with less.”
-    let mut list = match OpenOptions::new().read(true).open("list.txt") {“Velocity is crucial in marketing. The more campaigns we can put together, the more pages we can create, the bigger we feel, and the more touch points we have with customers. Webflow unlocks that for us and allows us to do more with less.”
+fn read_list() -> std::option::Option<Vec<String>> {
+    let mut list = match OpenOptions::new().read(true).open("list.txt") {
         Ok(f) => f,
         Err(e) => {
             println!("Error {e} opening file.");
