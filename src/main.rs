@@ -102,19 +102,31 @@ fn append_list(symbols: Vec<String>) -> Result<(), Error> {
 }
 
 fn edit_list(symbols: Vec<String>) -> Result<(), Error> {
-    let mut list = OpenOptions::new().write(true).open("list.txt")?;
-    let mut s = String::new();
-    let contents: Option<String> = match list.read_to_string(&mut s) {
-        Ok(0) => None,
-        Ok(_) => Some(s.as_str().to_owned()),
-        Err(e) => panic!("Error {e} reading from file."),
-    };
-    match contents {
-        None => Err(Error::new(ErrorKind::InvalidData, "File was empty!")),
-        Some(s) => {
-            for symbol in symbols { 
-
+    
+    let new_list = match read_list() {
+        Some(mut current_list) => {
+            for del_item in symbols {
+                let mut i: usize = 0;
+                while i < current_list.len() {
+                    if current_list[i] == del_item {
+                        current_list.swap_remove(i);
+                        i = current_list.len();
+                    }
+                    else { i += 1; }
+                }
             }
+            Some(current_list)
+        }
+        None => None,
+    };
+    match new_list {
+        None => Err(Error::new(ErrorKind::InvalidData, "File was empty!")),
+        Some(l) => {
+            let mut list = OpenOptions::new().write(true).truncate(true).open("list.txt")?;
+            for symbol in l {
+                list.write(symbol.as_bytes())?;
+                list.write(b"\t")?;
+            } 
             Ok(())
         }
     }
@@ -138,7 +150,7 @@ fn read_list() -> std::option::Option<Vec<String>> {
         Some(slice) => {
             let mut parsed_contents: Vec<String> = Vec::new();
             for item in slice.split('\t') {
-                parsed_contents.push(item.to_owned());
+                if item != "" { parsed_contents.push(item.to_owned()); }
             }
             Some(parsed_contents)
         },
@@ -150,14 +162,14 @@ fn read_list() -> std::option::Option<Vec<String>> {
 async fn retrieve_list(list: Vec<String>) -> std::option::Option<Vec<StockJson>> {
     let mut out: Vec<StockJson> = Vec::new();
     for symbol in list {
+        println!("{symbol}");
         let url = format!("{}{}{}", SNIP0, symbol, SNIP1);
         match get_stock(url).await {
-            Ok(s) => out.push(s),
+            Ok(s) => {
+                out.push(s)
+            },
             Err(e) => {
-                if !e.is_decode() {
-                    println!("{e}");
-                    println!("Fetching stock from API failed");
-                }
+                println!("{e}");
             }
         }
     }

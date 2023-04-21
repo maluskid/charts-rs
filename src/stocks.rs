@@ -1,5 +1,6 @@
 use reqwest;
 use std::collections::HashMap;
+use serde_json;
 use serde::{Serialize, Deserialize};
 
 pub fn display_stocks(stocks: Vec<StockJson>) {
@@ -74,12 +75,15 @@ pub struct StockJson {
 }
 
 pub async fn get_stock(url: String) -> Result<StockJson, Box<reqwest::Error>> {
-    let stock: StockJson = reqwest::Client::new()
+    let res = reqwest::Client::new()
         .get(url)
         .send()
         .await?
-        .json()
+        .text()
         .await?;
+    println!("Response: {}", res);
+    let stock: StockJson = serde_json::from_str(&res)
+        .unwrap_or(StockJson::from(StockJson { quote: HashMap::new() }));
     Ok(stock)
 }
 
