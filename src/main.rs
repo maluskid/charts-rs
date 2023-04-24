@@ -29,10 +29,10 @@ const USAGE: &str = "Usage:\n\tcharts-rs <symbol>\n\
                  \tcharts-rs list -a\n\n\
                  Enter charts-rs --help for more information.";
 const HELP: &str =
-    "Help:\n\tcharts-rs <symbol>\tEnter a list of symbols to display more than one.\n\
-                 \tcharts-rs add <symbol>\tAdds a symbol or list of symbols to the watchlist.\n\
-                 \tcharts-rs rm <symbol>\tRemoves a symbol or list of symbols from the watchlist.\n\
-                 \tcharts-rs list\t\tLists the data for all symbols currently in the list.\n\
+    "Help:\n\tcharts-rs <symbol>\t\tEnter a list of symbols to display more than one.\n\
+                 \tcharts-rs add <symbol>\t\tAdds a symbol or list of symbols to the watchlist.\n\
+                 \tcharts-rs rm <symbol>\t\tRemoves a symbol or list of symbols from the watchlist.\n\
+                 \tcharts-rs list\t\t\tLists the data for all symbols currently in the list.\n\
                  \tcharts-rs list -s <list name>\tSwitches the current list to <list name>\n\
                  \tcharts-rs list -n <list name>\tCreates a new empty list named <list name>\n\
                  \tcharts-rs list -d <list name>\tDeletes the list named <list name>\n\
@@ -94,31 +94,35 @@ fn parse_args(args: &mut Vec<String>) -> Branch {
             Branch::Remove(args.clone())
         }
         "list" => {
-            if args.len() > 3 {
-                println!("Error: Invalid syntax.");
-                return Branch::None;
-            }
-            // perhaps wrap an enum inisde of Branch::List?
-            // is enumception too much? I don't want to put
-            // functionality inside the parse_args function.
-            match &*args[1] {
-                "-s" => {
-                    println!("TODO: list -s");
-                    Branch::None
+            match args.len() {
+                1 => Branch::List,
+                // perhaps wrap an enum inisde of Branch::List?
+                // is enumception too much? I don't want to put
+                // functionality inside the parse_args function.
+                2..=3 => match &*args[1] {
+                    "-s" => {
+                        println!("TODO: list -s");
+                        Branch::None
+                    }
+                    "-n" => {
+                        println!("TODO: list -n");
+                        Branch::None
+                    }
+                    "-d" => {
+                        println!("TODO: list -d");
+                        Branch::None
+                    }
+                    "-a" => {
+                        println!("TODO: list -a");
+                        Branch::None
+                    }
+                    _ => Branch::List,
+                },
+                4.. => {
+                    println!("Error: Invalid syntax.");
+                    return Branch::None;
                 }
-                "-n" => {
-                    println!("TODO: list -n");
-                    Branch::None
-                }
-                "-d" => {
-                    println!("TODO: list -d");
-                    Branch::None
-                }
-                "-a" => {
-                    println!("TODO: list -a");
-                    Branch::None
-                }
-                _ => Branch::List,
+                _ => Branch::None,
             }
         }
         _ => Branch::Symbol(args.clone()),
