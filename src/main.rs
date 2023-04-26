@@ -6,16 +6,7 @@ use std::io::prelude::*;
 use std::io::{Error, ErrorKind};
 use stocks::{display_stocks, get_stock_alpha, get_stock_rapid, StockJsonA, StockJsonR};
 
-/// Branch is an enum which branches the main function depending upon
-/// the arguments passed to the program. If an argument is followed by
-/// more arguments, they will be contained within that enumeration.
-enum Branch {
-    Symbol(Vec<String>),
-    Add(Vec<String>),
-    Remove(Vec<String>),
-    List,
-    None,
-}
+// Using const definitions for string literals to declutter code later on.
 
 const SNIP0: &str = "https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=";
 const SNIP1: &str = "&apikey=1FGPYOV8MJGHJ1IC";
@@ -37,6 +28,17 @@ const HELP: &str =
                  \tcharts-rs list -n <list name>\tCreates a new empty list named <list name>\n\
                  \tcharts-rs list -d <list name>\tDeletes the list named <list name>\n\
                  \tcharts-rs list -a\t\tLists the names of all currently created lists\n";
+
+/// Branch is an enum which branches the main function depending upon
+/// the arguments passed to the program. If an argument is followed by
+/// more arguments, they will be contained within that enumeration.
+enum Branch {
+    Symbol(Vec<String>),
+    Add(Vec<String>),
+    Remove(Vec<String>),
+    List,
+    None,
+}
 
 #[tokio::main]
 async fn main() {
