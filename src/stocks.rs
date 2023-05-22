@@ -104,11 +104,13 @@ pub async fn get_stock_rapid(symbol: String) -> Result<StockJsonR, Box<reqwest::
         .text()
         .await?;
     println!("Response: {}", res);
-    let stock: StockJsonR = serde_json::from_str(&res).unwrap_or(StockJsonR::from(StockJsonR {
+    let stock: StockJsonR = serde_json::from_str(&res).unwrap();
+    // trying this with regular unwrap() first
+    /* _or(StockJsonR::from(StockJsonR {
         price: 0.0,
         change_point: 0.0,
         change_percentage: 0.0,
         total_vol: "0".to_owned(),
-    }));
+    })); */
     Ok(stock)
 }
