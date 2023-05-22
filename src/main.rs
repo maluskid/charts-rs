@@ -4,6 +4,7 @@ mod stocks;
 use std::fs::OpenOptions;
 use std::io::prelude::*;
 use std::io::{Error, ErrorKind};
+use std::net::{Shutdown, TcpListener, TcpStream};
 use stocks::{display_stocks, get_stock_alpha, get_stock_rapid, StockJsonA, StockJsonR};
 
 // Using const definitions for string literals to declutter code later on.
@@ -42,46 +43,26 @@ enum Branch {
 
 #[tokio::main]
 async fn main() {
-    let mut current_list = match OpenOptions::new().read(true).open("current_list.txt") {
-        Ok(mut f) => {
-            let mut buf = String::new();
-            f.read_to_string(&mut buf).unwrap();
-            buf
-        }
-        Err(e) => {
-            if e.kind() == ErrorKind::NotFound {
-                OpenOptions::new()
-                    .read(true)
-                    .write(true)
-                    .create(true)
-                    .open("current_list.txt")
-                    .unwrap();
-                let out = String::from("list.txt");
-                out
-            } else {
-                panic!("Error {e} opening file.");
-            }
-        }
-    };
-    println!("{current_list}");
+    let mut current_list = get_current_list();
+    println!("Current list is: {current_list}");
     let mut args: Vec<String> = std::env::args().skip(1).collect();
     let stocks = match parse_args(&mut args) {
         Branch::Symbol(symbols) => retrieve_list(symbols).await,
-        Branch::Add(symbols) => match append_list(symbols) {
+        Branch::Add(symbols) => match append_list(symbols, current_list) {
             Ok(()) => None,
             Err(_) => {
                 println!("Error appending symbols to list.\n");
                 None
             }
         },
-        Branch::Remove(symbols) => match edit_list(symbols) {
+        Branch::Remove(symbols) => match edit_list(symbols, current_list) {
             Ok(()) => None,
             Err(e) => {
                 println!("Error: {e}\n");
                 None
             }
         },
-        Branch::List => match read_list() {
+        Branch::List => match read_list(current_list) {
             Some(list) => retrieve_list(list).await,
             None => {
                 println!("List not found...\n");
@@ -90,9 +71,10 @@ async fn main() {
         },
         Branch::None => None,
     };
-    if stocks.is_some() {
-        display_stocks(stocks.unwrap());
-    }
+    match stocks {
+        Some(list) => display_stocks(list),
+        None => (),
+    };
 }
 
 /// Function that takes command line arguments and returns a Branch.
@@ -153,7 +135,8 @@ fn parse_args(args: &mut Vec<String>) -> Branch {
     }
 }
 
-fn append_list(symbols: Vec<String>) -> Result<(), Error> {
+fn append_list(symbols: Vec<String>, current_name: String) -> Result<(), Error> {
+    /* OLD CODE USING FILES ON NATIVE SYSTEM
     let mut list = OpenOptions::new()
         .append(true)
         .create(true)
@@ -161,12 +144,19 @@ fn append_list(symbols: Vec<String>) -> Result<(), Error> {
     for symbol in symbols {
         list.write(symbol.as_bytes())?;
         list.write(b"\t")?;
+    } */
+    let mut client = TcpStream::connect("127.0.0.1:1080")?;
+    let mut message = format!("POST {current_name} ");
+    for symbol in symbols {
+        message.push_str("{symbol} ");
     }
+    client.write(message.as_bytes())?;
+    client.shutdown(Shutdown::Both)?;
     Ok(())
 }
 
-fn edit_list(symbols: Vec<String>) -> Result<(), Error> {
-    let new_list = match read_list() {
+fn edit_list(symbols: Vec<String>, current_name: String) -> Result<(), Error> {
+    let new_list = match read_list(current_name) {
         Some(mut current_list) => {
             for del_item in symbols {
                 let mut i: usize = 0;
@@ -199,7 +189,29 @@ fn edit_list(symbols: Vec<String>) -> Result<(), Error> {
     }
 }
 
-fn read_list() -> std::option::Option<Vec<String>> {
+fn read_list(current_name: String) -> std::option::Option<Vec<String>> {
+    let mut client = TcpStream::connect("127.0.0.1:1080").unwrap();
+    let message = format!("GET {current_name}");
+    client.write(message.as_bytes()).unwrap();
+    let mut s = String::new();
+    let contents: Option<&str> = match client.read_to_string(&mut s) {
+        Ok(0) => None,
+        Ok(_) => Some(s.as_str()),
+        Err(e) => panic!("Error {e} reading from file."),
+    };
+    match contents {
+        Some(slice) => {
+            let mut parsed_contents: Vec<String> = Vec::new();
+            for item in slice.split(' ') {
+                if item != "" {
+                    parsed_contents.push(item.to_owned());
+                }
+            }
+            Some(parsed_contents)
+        }
+        None => None,
+    }
+    /* Old code using local files
     let mut list = match OpenOptions::new().read(true).open("list.txt") {
         Ok(f) => f,
         Err(e) => {
@@ -224,7 +236,7 @@ fn read_list() -> std::option::Option<Vec<String>> {
             Some(parsed_contents)
         }
         None => None,
-    }
+    } */
 }
 
 async fn retrieve_list(list: Vec<String>) -> std::option::Option<Vec<StockJsonA>> {
@@ -240,4 +252,32 @@ async fn retrieve_list(list: Vec<String>) -> std::option::Option<Vec<StockJsonA>
         }
     }
     Some(out)
+}
+
+fn get_current_list() -> String {
+    match OpenOptions::new()
+        .read(true)
+        .open("{HOME}/.charts-rs/current_list.txt")
+    {
+        Ok(mut f) => {
+            let mut buf = String::new();
+            f.read_to_string(&mut buf).unwrap();
+            buf
+        }
+        Err(e) => {
+            if e.kind() == ErrorKind::NotFound {
+                let mut temp = OpenOptions::new()
+                    .read(true)
+                    .write(true)
+                    .create(true)
+                    .open("{HOME}/.charts-rs/current_list.txt")
+                    .unwrap();
+                temp.write("list.txt".as_bytes()).unwrap();
+                let out = String::from("list.txt");
+                out
+            } else {
+                panic!("Error {e} opening file.");
+            }
+        }
+    }
 }
