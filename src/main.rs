@@ -40,6 +40,28 @@ const HELP: &str =
 
 #[tokio::main]
 async fn main() {
+    let mut current_list = match OpenOptions::new().read(true).open("current_list.txt") {
+        Ok(mut f) => {
+            let mut buf = String::new();
+            f.read_to_string(&mut buf).unwrap();
+            buf
+        }
+        Err(e) => {
+            if e.kind() == ErrorKind::NotFound {
+                OpenOptions::new()
+                    .read(true)
+                    .write(true)
+                    .create(true)
+                    .open("current_list.txt")
+                    .unwrap();
+                let out = String::from("list.txt");
+                out
+            } else {
+                panic!("Error {e} opening file.");
+            }
+        }
+    };
+    println!("{current_list}");
     let mut args: Vec<String> = std::env::args().skip(1).collect();
     let stocks = match parse_args(&mut args) {
         Branch::Symbol(symbols) => retrieve_list(symbols).await,
