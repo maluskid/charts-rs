@@ -1,3 +1,4 @@
+extern crate dirs;
 extern crate reqwest;
 extern crate tokio;
 mod stocks;
@@ -255,10 +256,22 @@ async fn retrieve_list(list: Vec<String>) -> std::option::Option<Vec<StockJsonA>
 }
 
 fn get_current_list() -> String {
-    match OpenOptions::new()
-        .read(true)
-        .open("{HOME}/.charts-rs/current_list.txt")
-    {
+    let mut path: std::path::PathBuf = match dirs::config_dir() {
+        Some(mut out) => {
+            out.push(".charts-rs/current_list.txt");
+            out
+        }
+        None => {
+            if let Some(mut out) = dirs::home_dir() {
+                out.push(".charts-rs/current_list.txt");
+                out
+            } else {
+                panic!("Could not find .charts-rs directory!");
+            }
+        }
+    };
+    println!("Path for charts-rs files is: {path:?}");
+    match OpenOptions::new().read(true).open(&path) {
         Ok(mut f) => {
             let mut buf = String::new();
             f.read_to_string(&mut buf).unwrap();
@@ -270,7 +283,7 @@ fn get_current_list() -> String {
                     .read(true)
                     .write(true)
                     .create(true)
-                    .open("{HOME}/.charts-rs/current_list.txt")
+                    .open(&path)
                     .unwrap();
                 temp.write("list.txt".as_bytes()).unwrap();
                 let out = String::from("list.txt");
