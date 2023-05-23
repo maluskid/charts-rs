@@ -149,7 +149,8 @@ fn append_list(symbols: Vec<String>, current_name: String) -> Result<(), Error> 
     let mut client = TcpStream::connect("127.0.0.1:1080")?;
     let mut message = format!("POST {current_name} ");
     for symbol in symbols {
-        message.push_str("{symbol} ");
+        let tmp = format!("{symbol} ");
+        message.push_str(tmp.as_str());
     }
     client.write(message.as_bytes())?;
     client.shutdown(Shutdown::Both)?;
@@ -256,7 +257,7 @@ async fn retrieve_list(list: Vec<String>) -> std::option::Option<Vec<StockJsonA>
 }
 
 fn get_current_list() -> String {
-    let mut path: std::path::PathBuf = match dirs::config_dir() {
+    let path: std::path::PathBuf = match dirs::config_dir() {
         Some(mut out) => {
             out.push(".charts-rs/current_list.txt");
             out
