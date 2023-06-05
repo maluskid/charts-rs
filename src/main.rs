@@ -45,7 +45,6 @@ enum Branch {
 #[tokio::main]
 async fn main() {
     let mut current_list = get_current_list();
-    println!("Current list is: {current_list}");
     let mut args: Vec<String> = std::env::args().skip(1).collect();
     let stocks = match parse_args(&mut args) {
         Branch::Symbol(symbols) => retrieve_list(symbols).await,
@@ -271,7 +270,6 @@ fn get_current_list() -> String {
             }
         }
     };
-    println!("Path for charts-rs files is: {path:?}");
     match OpenOptions::new().read(true).open(&path) {
         Ok(mut f) => {
             let mut buf = String::new();
