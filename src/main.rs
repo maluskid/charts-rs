@@ -5,10 +5,13 @@ mod stocks;
 use std::fs::OpenOptions;
 use std::io::prelude::*;
 use std::io::{Error, ErrorKind};
-use std::net::{Shutdown, TcpListener, TcpStream};
-use stocks::{display_stocks, get_stock_alpha, get_stock_rapid, StockJsonA, StockJsonR};
+use std::net::{Shutdown, TcpStream};
+use stocks::Stocks;
 
 // Using const definitions for string literals to declutter code later on.
+/* items removed from directions:
+\tcharts-rs list -a\n\n\
+\tcharts-rs list -a\t\tLists the names of all currently created lists\n"; */
 
 const SNIP0: &str = "https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=";
 const SNIP1: &str = "&apikey=1FGPYOV8MJGHJ1IC";
@@ -16,10 +19,9 @@ const USAGE: &str = "Usage:\n\tcharts-rs <symbol>\n\
                  \tcharts-rs add <symbol>\n\
                  \tcharts-rs rm <symbol>\n\
                  \tcharts-rs list\n\
-                 \tcharts-rs list -s  <list name>\n\
+                 \tcharts-rs list -s <list name>\n\
                  \tcharts-rs list -n <list name>\n\
-                 \tcharts-rs list -d <list name>\n\
-                 \tcharts-rs list -a\n\n\
+                 \tcharts-rs list -d <list name>\n\n\
                  Enter charts-rs --help for more information.";
 const HELP: &str =
     "Help:\n\tcharts-rs <symbol>\t\tEnter a list of symbols to display more than one.\n\
@@ -27,9 +29,8 @@ const HELP: &str =
                  \tcharts-rs rm <symbol>\t\tRemoves a symbol or list of symbols from the watchlist.\n\
                  \tcharts-rs list\t\t\tLists the data for all symbols currently in the list.\n\
                  \tcharts-rs list -s <list name>\tSwitches the current list to <list name>\n\
-                 \tcharts-rs list -n <list name>\tCreates a new empty list named <list name>\n\
-                 \tcharts-rs list -d <list name>\tDeletes the list named <list name>\n\
-                 \tcharts-rs list -a\t\tLists the names of all currently created lists\n";
+                 \tcharts-rs list -n <list name>\tCreates a new empty list named <list name> and sets it to the current list.\n\
+                 \tcharts-rs list -d <list name>\tDeletes the list named <list name>\n";
 
 /// Branch is an enum which branches the main function depending upon
 /// the arguments passed to the program. If an argument is followed by
@@ -46,34 +47,35 @@ enum Branch {
 async fn main() {
     let mut current_list = get_current_list();
     let mut args: Vec<String> = std::env::args().skip(1).collect();
-    let stocks = match parse_args(&mut args) {
-        Branch::Symbol(symbols) => retrieve_list(symbols).await,
+    match parse_args(&mut args) {
+        // Branch::Symbol(symbols) => retrieve_list(symbols).await,
+        Branch::Symbol(symbols) => {
+            let data = Stocks::from(symbols);
+            data.display_stocks().await;
+        }
         Branch::Add(symbols) => match append_list(symbols, current_list) {
-            Ok(()) => None,
+            Ok(()) => (),
             Err(_) => {
                 println!("Error appending symbols to list.\n");
-                None
             }
         },
         Branch::Remove(symbols) => match edit_list(symbols, current_list) {
-            Ok(()) => None,
+            Ok(()) => (),
             Err(e) => {
                 println!("Error: {e}\n");
-                None
             }
         },
         Branch::List => match read_list(current_list) {
-            Some(list) => retrieve_list(list).await,
+            // Some(list) => retrieve_list(list).await,
+            Some(list) => {
+                let data = Stocks::from(list);
+                data.display_stocks().await;
+            }
             None => {
                 println!("List not found...\n");
-                None
             }
         },
-        Branch::None => None,
-    };
-    match stocks {
-        Some(list) => display_stocks(list),
-        None => (),
+        Branch::None => (),
     };
 }
 
@@ -102,26 +104,32 @@ fn parse_args(args: &mut Vec<String>) -> Branch {
         "list" => {
             match args.len() {
                 1 => Branch::List,
-                // perhaps wrap an enum inisde of Branch::List?
-                // is enumception too much? I don't want to put
-                // functionality inside the parse_args function.
                 2..=3 => match &*args[1] {
                     "-s" => {
-                        println!("TODO: list -s");
+                        if args.len() != 3 {
+                            println!("Error: Invalid syntax.");
+                        } else {
+                            set_current_list(args[2].clone());
+                        }
                         Branch::None
                     }
                     "-n" => {
-                        println!("TODO: list -n");
+                        // Will need to change this if not using microservice
+                        if args.len() != 3 {
+                            println!("Error: Invalid syntax.");
+                        } else {
+                            set_current_list(args[2].clone());
+                        }
                         Branch::None
                     }
                     "-d" => {
-                        println!("TODO: list -d");
+                        set_current_list("list".to_owned());
                         Branch::None
                     }
-                    "-a" => {
+                    /* "-a" => {
                         println!("TODO: list -a");
                         Branch::None
-                    }
+                    }*/
                     _ => Branch::List,
                 },
                 4.. => {
@@ -131,8 +139,19 @@ fn parse_args(args: &mut Vec<String>) -> Branch {
                 _ => Branch::None,
             }
         }
+        "exit" => {
+            close_server().unwrap();
+            Branch::None
+        }
         _ => Branch::Symbol(args.clone()),
     }
+}
+
+fn close_server() -> Result<(), Error> {
+    let mut client = TcpStream::connect("127.0.0.1:1080")?;
+    client.write("EXIT".as_bytes())?;
+    client.shutdown(Shutdown::Both)?;
+    Ok(())
 }
 
 fn append_list(symbols: Vec<String>, current_name: String) -> Result<(), Error> {
@@ -240,7 +259,7 @@ fn read_list(current_name: String) -> std::option::Option<Vec<String>> {
     } */
 }
 
-async fn retrieve_list(list: Vec<String>) -> std::option::Option<Vec<StockJsonA>> {
+/* async fn retrieve_list(list: Vec<String>) -> std::option::Option<Vec<StockJsonA>> {
     let mut out: Vec<StockJsonA> = Vec::new();
     for symbol in list {
         println!("{symbol}");
@@ -253,6 +272,32 @@ async fn retrieve_list(list: Vec<String>) -> std::option::Option<Vec<StockJsonA>
         }
     }
     Some(out)
+} */
+
+fn set_current_list(mut new_name: String) -> () {
+    let path: std::path::PathBuf = match dirs::config_dir() {
+        Some(mut out) => {
+            out.push(".charts-rs/current_list.txt");
+            out
+        }
+        None => {
+            if let Some(mut out) = dirs::home_dir() {
+                out.push(".charts-rs/current_list.txt");
+                out
+            } else {
+                panic!("Could not find .charts-rs directory!");
+            }
+        }
+    };
+    new_name.push_str(".txt");
+    match OpenOptions::new().write(true).truncate(true).open(&path) {
+        Ok(mut f) => {
+            f.write(new_name.as_bytes()).unwrap();
+        }
+        Err(e) => {
+            panic!("Error {e} opening file.");
+        }
+    }
 }
 
 fn get_current_list() -> String {
