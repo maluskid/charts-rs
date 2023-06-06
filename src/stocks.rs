@@ -1,12 +1,12 @@
 use reqwest;
 use serde::{Deserialize, Serialize};
-use serde_json;
+use serde_json::{self, Value};
 use std::collections::HashMap;
 
 const ALPHASNIP0: &str = "https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=";
 const ALPHASNIP1: &str = "&apikey=1FGPYOV8MJGHJ1IC";
-const MSSNIP0: &str = "";
-const MSSNIP1: &str = "";
+const MSSNIP0: &str = "https://ms-finance.p.rapidapi.com/market/v2/auto-complete?q=";
+const RAPIDKEY: &str = "216c8810b8msh81fd3895966c048p1f50b6jsn9dbb47c8f68e";
 
 pub struct Stocks {
     symbols: Vec<String>,
@@ -15,44 +15,16 @@ pub struct Stocks {
 
 // Serde structs to contain the Json information returned from various APIS
 // Wrap these in a Json enum below
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize)]
 struct StockJsonAlphavantage {
     #[serde(rename = "Global Quote")]
     quote: HashMap<String, String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-struct StockJsonMsFinance {
-    price: f32,
-    change_point: f32,
-    change_percentage: f32,
-    total_vol: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct Results {
-    id: String,
-    name: String,
-    description: Option<String>,
-    exchange: String,
-    performanceId: String,
-    securityType: String,
-    ticker: String,
-    #[serde(rename = "type")]
-    nationality: String,
-    url: Option<String>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct MsFinanceID {
-    count: u16,
-    pages: u16,
-    results: Vec<Results>,
-}
 // An enum which will contain different Json objects depending on API,
 // for use within the Stocks struct
 enum Json {
-    MsFinance(Option<StockJsonMsFinance>),
+    MsFinance(Option<serde_json::Value>),
     Alphavantage(Option<StockJsonAlphavantage>),
     None,
 }
@@ -193,89 +165,27 @@ async fn get_stock_alpha(symbol: &String) -> Result<StockJsonAlphavantage, Box<r
 /// Implementation for the 'MS Finance' API on Rapidapi. Main benefit of this API is
 /// that it's free and has nearly unlimited requests.
 
-async fn get_stock_ms(symbol: &String) -> Result<StockJsonMsFinance, Box<reqwest::Error>> {
-    let url = format!("https://ms-finance.p.rapidapi.com/market/v2/auto-complete");
+async fn get_stock_ms(symbol: &String) -> Result<Value, Box<reqwest::Error>> {
+    let url = format!("{MSSNIP0}{symbol}");
     let res = reqwest::Client::new()
         .request(reqwest::Method::GET, url)
-        .query(symbol)
-        .header(
-            "X-RapidAPI-Key",
-            "216c8810b8msh81fd3895966c048p1f50b6jsn9dbb47c8f68e",
-        )
-        .header("X-RapidAPI-Host", "msfinance.p.rapidapi.com")
+        .header("X-RapidAPI-Key", RAPIDKEY)
+        .header("X-RapidAPI-Host", "ms-finance.p.rapidapi.com")
         .send()
         .await?
-        .json::<MsFinanceID>()
+        .text()
         .await?;
     println!("Response: {:?}", res);
-
-    // trying this with regular unwrap() first
-    /* _or(StockJsonR::from(StockJsonR {
-        price: 0.0,
-        change_point: 0.0,
-        change_percentage: 0.0,
-        total_vol: "0".to_owned(),
-    })); */
-    Ok(StockJsonMsFinance::from(StockJsonMsFinance {
-        price: 0.0,
-        change_point: 0.0,
-        change_percentage: 0.0,
-        total_vol: "0".to_owned(),
-    }))
-}
-
-// preserving old syntax of display_stocks function for reference or in case I need to go back
-/* pub async fn display_stocks(stocks_string: Vec<String>) {
-    let dash = '-';
-    let headers = [" Symbol ", " Price  ", " Prev   ", " Change ", " Pct %  "];
-
-    let header_map = HashMap::from([
-        (headers[0], "01. symbol"),
-        (headers[1], "05. price"),
-        (headers[2], "08. previous close"),
-        (headers[3], "09. change"),
-        (headers[4], "10. change percent"),
-    ]);
-
+    let auto_complete: Value = serde_json::from_str(&res).unwrap();
+    let value = &auto_complete["results"][0];
     print!(
-        "\t{}\t{}\t{}\t{}\t{}\n",
-        headers[0], headers[1], headers[2], headers[3], headers[4]
+        "Symbol of request is: {}\nPerformance ID is: {}",
+        value["ticker"], value["performanceId"]
     );
 
-    for item in headers {
-        print!("\t");
-        for _ in 0..item.len() {
-            print!("{dash}");
-        }
-    }
-    print!("\n");
-
-    for stock in stocks {
-        let mut s = String::from("\t");
-        let default = String::from("N/A");
-        for i in 0..headers.len() {
-            s.push(' ');
-            let key = header_map.get(headers[i]).unwrap().to_string();
-            let mut value = stock.quote.get(&key).unwrap_or(&default).to_owned();
-            if i > 0 && i < 4 {
-                for _ in 0..2 {
-                    value.pop();
-                }
-            }
-            if i == 4 {
-                for _ in 0..3 {
-                    value.pop();
-                }
-                value.push('%');
-            }
-            s.push_str(&value);
-            if value.len() < 7 {
-                for _ in 0..(7 - value.len()) {
-                    s.push(' ');
-                }
-            }
-            s.push('\t');
-        }
-        print!("{s}\n");
-    }
-} */
+    let data = r#"{
+        "test": "value"
+    }"#;
+    let out: Value = serde_json::from_str(data).unwrap();
+    Ok(out)
+}

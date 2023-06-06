@@ -13,8 +13,6 @@ use stocks::Stocks;
 \tcharts-rs list -a\n\n\
 \tcharts-rs list -a\t\tLists the names of all currently created lists\n"; */
 
-const SNIP0: &str = "https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=";
-const SNIP1: &str = "&apikey=1FGPYOV8MJGHJ1IC";
 const USAGE: &str = "Usage:\n\tcharts-rs <symbol>\n\
                  \tcharts-rs add <symbol>\n\
                  \tcharts-rs rm <symbol>\n\
@@ -45,7 +43,7 @@ enum Branch {
 
 #[tokio::main]
 async fn main() {
-    let mut current_list = get_current_list();
+    let current_list = get_current_list();
     let mut args: Vec<String> = std::env::args().skip(1).collect();
     match parse_args(&mut args) {
         // Branch::Symbol(symbols) => retrieve_list(symbols).await,
