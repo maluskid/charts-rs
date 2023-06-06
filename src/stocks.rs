@@ -29,6 +29,26 @@ struct StockJsonMsFinance {
     total_vol: String,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+struct Results {
+    id: String,
+    name: String,
+    description: Option<String>,
+    exchange: String,
+    performanceId: String,
+    securityType: String,
+    ticker: String,
+    #[serde(rename = "type")]
+    nationality: String,
+    url: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct MsFinanceID {
+    count: u16,
+    pages: u16,
+    results: Vec<Results>,
+}
 // An enum which will contain different Json objects depending on API,
 // for use within the Stocks struct
 enum Json {
@@ -41,21 +61,35 @@ impl Stocks {
     pub fn from(items: Vec<String>) -> Stocks {
         Stocks {
             symbols: items,
-            json: Vec::from([Json::None]),
+            json: Vec::new(),
         }
     }
 
-    pub async fn display_stocks(&self) {
+    pub async fn display_stocks(&mut self) {
+        let mut count = 0;
+        for symbol in &self.symbols {
+            if count == 0 {
+                print!("Loading[");
+            } else {
+                print!("=");
+            }
+            if count < 5 {
+                let data = retrieve(symbol.clone(), Json::Alphavantage(None)).await;
+                self.json.push(data);
+            } else {
+                let data = retrieve(symbol.clone(), Json::MsFinance(None)).await;
+                self.json.push(data);
+            }
+            count += 1;
+        }
+        print!("]\n\n\n");
+
+        Stocks::print_stocks(self);
+    }
+
+    fn print_stocks(&self) {
         let dash = '-';
         let headers = [" Symbol ", " Price  ", " Prev   ", " Change ", " Pct %  "];
-
-        let header_map = HashMap::from([
-            (headers[0], "01. symbol"),
-            (headers[1], "05. price"),
-            (headers[2], "08. previous close"),
-            (headers[3], "09. change"),
-            (headers[4], "10. change percent"),
-        ]);
 
         print!(
             "\t{}\t{}\t{}\t{}\t{}\n",
@@ -70,68 +104,75 @@ impl Stocks {
         }
         print!("\n");
 
-        // may not need this code, iterate over retrieve with Json type predetermined.
-
-        let alpha_stocks = Vec::new();
-        let msfinance_stocks = Vec::new();
-        if self.symbols.len() > 5 {
-            alpha_stocks = self.symbols.clone();
-            msfinance_stocks = alpha_stocks.split_off(4);
-        } else {
-            alpha_stocks = self.symbols.clone();
-        }
-
-        // write a Json agnostic function to handle this portion
-        for stock in self.json {
-            let mut s = String::from("\t");
-            let default = String::from("N/A");
-            for i in 0..headers.len() {
-                s.push(' ');
-                let key = header_map.get(headers[i]).unwrap().to_string();
-                let mut value = stock.quote.get(&key).unwrap_or(&default).to_owned();
-                if i > 0 && i < 4 {
-                    for _ in 0..2 {
-                        value.pop();
-                    }
-                }
-                if i == 4 {
-                    for _ in 0..3 {
-                        value.pop();
-                    }
-                    value.push('%');
-                }
-                s.push_str(&value);
-                if value.len() < 7 {
-                    for _ in 0..(7 - value.len()) {
-                        s.push(' ');
-                    }
-                }
-                s.push('\t');
-            }
-            print!("{s}\n");
-        }
-
-        async fn retrieve(symbol: String, api_kind: Json) -> Json {
-            // insert your own api resolving function here
-            match api_kind {
-                Json::Alphavantage(None) => match get_stock_alpha(&symbol).await {
-                    Ok(json) => Json::Alphavantage(Some(json)),
-                    Err(e) => {
-                        println!("Error {e} fetching {symbol} from API.");
-                        Json::None
-                    }
-                },
-                Json::MsFinance(None) => match get_stock_ms(&symbol).await {
-                    Ok(json) => Json::MsFinance(Some(json)),
-                    Err(e) => {
-                        println!("Error {e} fetching {symbol} from API.");
-                        Json::None
-                    }
-                },
-                _ => Json::None,
-            }
+        for stock in &self.json {
+            let s = match stock {
+                Json::Alphavantage(Some(data)) => format_alpha(data, &headers),
+                Json::MsFinance(Some(data)) => String::from("MsFinance got"),
+                _ => String::from("---------------------------------------------------"),
+            };
+            println!("{s}\n");
         }
     }
+}
+
+// Function to add to for new api implementation
+async fn retrieve(symbol: String, api_kind: Json) -> Json {
+    // insert your own api resolving function here
+    match api_kind {
+        Json::Alphavantage(None) => match get_stock_alpha(&symbol).await {
+            Ok(json) => Json::Alphavantage(Some(json)),
+            Err(e) => {
+                println!("Error {e} fetching {symbol} from API.");
+                Json::None
+            }
+        },
+        Json::MsFinance(None) => match get_stock_ms(&symbol).await {
+            Ok(json) => Json::MsFinance(Some(json)),
+            Err(e) => {
+                println!("Error {e} fetching {symbol} from API.");
+                Json::None
+            }
+        },
+        _ => Json::None,
+    }
+}
+
+fn format_alpha(stock: &StockJsonAlphavantage, headers: &[&str; 5]) -> String {
+    let header_map = HashMap::from([
+        (headers[0], "01. symbol"),
+        (headers[1], "05. price"),
+        (headers[2], "08. previous close"),
+        (headers[3], "09. change"),
+        (headers[4], "10. change percent"),
+    ]);
+
+    let mut s = String::from("\t");
+    let default = String::from("N/A");
+
+    for i in 0..headers.len() {
+        s.push(' ');
+        let key = header_map.get(&headers[i]).unwrap().to_string();
+        let mut value = stock.quote.get(&key).unwrap_or(&default).to_owned();
+        if i > 0 && i < 4 {
+            for _ in 0..2 {
+                value.pop();
+            }
+        }
+        if i == 4 {
+            for _ in 0..3 {
+                value.pop();
+            }
+            value.push('%');
+        }
+        s.push_str(&value);
+        if value.len() < 7 {
+            for _ in 0..(7 - value.len()) {
+                s.push(' ');
+            }
+        }
+        s.push('\t');
+    }
+    s
 }
 
 /// Multiple implementations of get_stock to account for different
@@ -142,7 +183,6 @@ impl Stocks {
 async fn get_stock_alpha(symbol: &String) -> Result<StockJsonAlphavantage, Box<reqwest::Error>> {
     let url = format!("{}{}{}", ALPHASNIP0, symbol, ALPHASNIP1);
     let res = reqwest::Client::new().get(url).send().await?.text().await?;
-    println!("Response: {}", res);
     let stock: StockJsonAlphavantage =
         serde_json::from_str(&res).unwrap_or(StockJsonAlphavantage::from(StockJsonAlphavantage {
             quote: HashMap::new(),
@@ -154,21 +194,21 @@ async fn get_stock_alpha(symbol: &String) -> Result<StockJsonAlphavantage, Box<r
 /// that it's free and has nearly unlimited requests.
 
 async fn get_stock_ms(symbol: &String) -> Result<StockJsonMsFinance, Box<reqwest::Error>> {
-    let url = format!("https://ms-finance.p.rapidapi.com/{}", symbol);
+    let url = format!("https://ms-finance.p.rapidapi.com/market/v2/auto-complete");
     let res = reqwest::Client::new()
         .request(reqwest::Method::GET, url)
-        .header(reqwest::header::CONTENT_TYPE, "application/octet-stream")
+        .query(symbol)
         .header(
             "X-RapidAPI-Key",
             "216c8810b8msh81fd3895966c048p1f50b6jsn9dbb47c8f68e",
         )
-        .header("X-RapidAPI-Host", "realstonks.p.rapidapi.com")
+        .header("X-RapidAPI-Host", "msfinance.p.rapidapi.com")
         .send()
         .await?
-        .text()
+        .json::<MsFinanceID>()
         .await?;
-    println!("Response: {}", res);
-    let stock: StockJsonMsFinance = serde_json::from_str(&res).unwrap();
+    println!("Response: {:?}", res);
+
     // trying this with regular unwrap() first
     /* _or(StockJsonR::from(StockJsonR {
         price: 0.0,
@@ -176,7 +216,12 @@ async fn get_stock_ms(symbol: &String) -> Result<StockJsonMsFinance, Box<reqwest
         change_percentage: 0.0,
         total_vol: "0".to_owned(),
     })); */
-    Ok(stock)
+    Ok(StockJsonMsFinance::from(StockJsonMsFinance {
+        price: 0.0,
+        change_point: 0.0,
+        change_percentage: 0.0,
+        total_vol: "0".to_owned(),
+    }))
 }
 
 // preserving old syntax of display_stocks function for reference or in case I need to go back

@@ -50,7 +50,7 @@ async fn main() {
     match parse_args(&mut args) {
         // Branch::Symbol(symbols) => retrieve_list(symbols).await,
         Branch::Symbol(symbols) => {
-            let data = Stocks::from(symbols);
+            let mut data = Stocks::from(symbols);
             data.display_stocks().await;
         }
         Branch::Add(symbols) => match append_list(symbols, current_list) {
@@ -68,7 +68,7 @@ async fn main() {
         Branch::List => match read_list(current_list) {
             // Some(list) => retrieve_list(list).await,
             Some(list) => {
-                let data = Stocks::from(list);
+                let mut data = Stocks::from(list);
                 data.display_stocks().await;
             }
             None => {
