@@ -1,12 +1,11 @@
 use reqwest;
 use serde::{Deserialize, Serialize};
-use serde_json::{self, Value};
+use serde_json::{self};
 use std::collections::HashMap;
 
 const ALPHASNIP0: &str = "https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=";
-const ALPHASNIP1: &str = "&apikey=1FGPYOV8MJGHJ1IC";
-const MSSNIP0: &str = "https://ms-finance.p.rapidapi.com/market/v2/auto-complete?q=";
-const RAPIDKEY: &str = "216c8810b8msh81fd3895966c048p1f50b6jsn9dbb47c8f68e";
+const ALPHASNIP1: &str = "&apikey=2FY0A0YAKP0OF93E";
+// const ALPHASNIP1: &str = "&apikey=1FGPYOV8MJGHJ1IC";
 
 pub struct Stocks {
     symbols: Vec<String>,
@@ -24,7 +23,6 @@ struct StockJsonAlphavantage {
 // An enum which will contain different Json objects depending on API,
 // for use within the Stocks struct
 enum Json {
-    MsFinance(Option<serde_json::Value>),
     Alphavantage(Option<StockJsonAlphavantage>),
     None,
 }
@@ -38,28 +36,23 @@ impl Stocks {
     }
 
     pub async fn display_stocks(&mut self) {
-        let mut count = 0;
+        let mut first = true;
         for symbol in &self.symbols {
-            if count == 0 {
+            if first {
                 print!("Loading[");
             } else {
-                print!("=");
+                print!("===");
             }
-            if count < 5 {
-                let data = retrieve(symbol.clone(), Json::Alphavantage(None)).await;
-                self.json.push(data);
-            } else {
-                let data = retrieve(symbol.clone(), Json::MsFinance(None)).await;
-                self.json.push(data);
-            }
-            count += 1;
+            let data = retrieve(symbol.clone(), Json::Alphavantage(None)).await;
+            self.json.push(data);
+            first = false;
         }
         print!("]\n\n\n");
 
-        Stocks::print_stocks(self);
+        Stocks::print_stocks(self).await;
     }
 
-    fn print_stocks(&self) {
+    async fn print_stocks(&self) {
         let dash = '-';
         let headers = [" Symbol ", " Price  ", " Prev   ", " Change ", " Pct %  "];
 
@@ -76,14 +69,15 @@ impl Stocks {
         }
         print!("\n");
 
+        let mut s = String::new();
+        // Add your own API here
         for stock in &self.json {
-            let s = match stock {
-                Json::Alphavantage(Some(data)) => format_alpha(data, &headers),
-                Json::MsFinance(Some(data)) => String::from("MsFinance got"),
-                _ => String::from("---------------------------------------------------"),
+            match stock {
+                Json::Alphavantage(Some(data)) => s.push_str(format_alpha(data, &headers).as_str()),
+                _ => println!("\t---------------------------------------------------"),
             };
-            println!("{s}\n");
         }
+        println!("{s}");
     }
 }
 
@@ -93,13 +87,6 @@ async fn retrieve(symbol: String, api_kind: Json) -> Json {
     match api_kind {
         Json::Alphavantage(None) => match get_stock_alpha(&symbol).await {
             Ok(json) => Json::Alphavantage(Some(json)),
-            Err(e) => {
-                println!("Error {e} fetching {symbol} from API.");
-                Json::None
-            }
-        },
-        Json::MsFinance(None) => match get_stock_ms(&symbol).await {
-            Ok(json) => Json::MsFinance(Some(json)),
             Err(e) => {
                 println!("Error {e} fetching {symbol} from API.");
                 Json::None
@@ -144,6 +131,7 @@ fn format_alpha(stock: &StockJsonAlphavantage, headers: &[&str; 5]) -> String {
         }
         s.push('\t');
     }
+    s.push('\n');
     s
 }
 
@@ -160,32 +148,4 @@ async fn get_stock_alpha(symbol: &String) -> Result<StockJsonAlphavantage, Box<r
             quote: HashMap::new(),
         }));
     Ok(stock)
-}
-
-/// Implementation for the 'MS Finance' API on Rapidapi. Main benefit of this API is
-/// that it's free and has nearly unlimited requests.
-
-async fn get_stock_ms(symbol: &String) -> Result<Value, Box<reqwest::Error>> {
-    let url = format!("{MSSNIP0}{symbol}");
-    let res = reqwest::Client::new()
-        .request(reqwest::Method::GET, url)
-        .header("X-RapidAPI-Key", RAPIDKEY)
-        .header("X-RapidAPI-Host", "ms-finance.p.rapidapi.com")
-        .send()
-        .await?
-        .text()
-        .await?;
-    println!("Response: {:?}", res);
-    let auto_complete: Value = serde_json::from_str(&res).unwrap();
-    let value = &auto_complete["results"][0];
-    print!(
-        "Symbol of request is: {}\nPerformance ID is: {}",
-        value["ticker"], value["performanceId"]
-    );
-
-    let data = r#"{
-        "test": "value"
-    }"#;
-    let out: Value = serde_json::from_str(data).unwrap();
-    Ok(out)
 }

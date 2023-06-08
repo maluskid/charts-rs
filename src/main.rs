@@ -9,10 +9,6 @@ use std::net::{Shutdown, TcpStream};
 use stocks::Stocks;
 
 // Using const definitions for string literals to declutter code later on.
-/* items removed from directions:
-\tcharts-rs list -a\n\n\
-\tcharts-rs list -a\t\tLists the names of all currently created lists\n"; */
-
 const USAGE: &str = "Usage:\n\tcharts-rs <symbol>\n\
                  \tcharts-rs add <symbol>\n\
                  \tcharts-rs rm <symbol>\n\
@@ -152,18 +148,9 @@ fn close_server() -> Result<(), Error> {
     Ok(())
 }
 
-fn append_list(symbols: Vec<String>, current_name: String) -> Result<(), Error> {
-    /* OLD CODE USING FILES ON NATIVE SYSTEM
-    let mut list = OpenOptions::new()
-        .append(true)
-        .create(true)
-        .open("list.txt")?;
-    for symbol in symbols {
-        list.write(symbol.as_bytes())?;
-        list.write(b"\t")?;
-    } */
+fn write_to_list(symbols: Vec<String>, current_name: String) -> Result<(), Error> {
     let mut client = TcpStream::connect("127.0.0.1:1080")?;
-    let mut message = format!("POST {current_name} ");
+    let mut message = format!("POST {} ", &current_name);
     for symbol in symbols {
         let tmp = format!("{symbol} ");
         message.push_str(tmp.as_str());
@@ -173,13 +160,25 @@ fn append_list(symbols: Vec<String>, current_name: String) -> Result<(), Error> 
     Ok(())
 }
 
+fn append_list(symbols: Vec<String>, current_name: String) -> Result<(), Error> {
+    let mut new_list = match read_list(current_name.clone()) {
+        Some(current_list) => current_list,
+        None => Vec::new(),
+    };
+    for symbol in symbols {
+        new_list.push(symbol);
+    }
+    write_to_list(new_list, current_name)?;
+    Ok(())
+}
+
 fn edit_list(symbols: Vec<String>, current_name: String) -> Result<(), Error> {
-    let new_list = match read_list(current_name) {
+    let new_list = match read_list(current_name.clone()) {
         Some(mut current_list) => {
-            for del_item in symbols {
+            for del_item in &symbols {
                 let mut i: usize = 0;
                 while i < current_list.len() {
-                    if current_list[i] == del_item {
+                    if current_list[i] == *del_item {
                         current_list.swap_remove(i);
                         i = current_list.len();
                     } else {
@@ -194,14 +193,7 @@ fn edit_list(symbols: Vec<String>, current_name: String) -> Result<(), Error> {
     match new_list {
         None => Err(Error::new(ErrorKind::InvalidData, "File was empty!")),
         Some(l) => {
-            let mut list = OpenOptions::new()
-                .write(true)
-                .truncate(true)
-                .open("list.txt")?;
-            for symbol in l {
-                list.write(symbol.as_bytes())?;
-                list.write(b"\t")?;
-            }
+            write_to_list(l, current_name.clone())?;
             Ok(())
         }
     }
@@ -229,48 +221,7 @@ fn read_list(current_name: String) -> std::option::Option<Vec<String>> {
         }
         None => None,
     }
-    /* Old code using local files
-    let mut list = match OpenOptions::new().read(true).open("list.txt") {
-        Ok(f) => f,
-        Err(e) => {
-            println!("Error {e} opening file.");
-            return None;
-        }
-    };
-    let mut s = String::new();
-    let contents: Option<&str> = match list.read_to_string(&mut s) {
-        Ok(0) => None,
-        Ok(_) => Some(s.as_str()),
-        Err(e) => panic!("Error {e} reading from file."),
-    };
-    match contents {
-        Some(slice) => {
-            let mut parsed_contents: Vec<String> = Vec::new();
-            for item in slice.split('\t') {
-                if item != "" {
-                    parsed_contents.push(item.to_owned());
-                }
-            }
-            Some(parsed_contents)
-        }
-        None => None,
-    } */
 }
-
-/* async fn retrieve_list(list: Vec<String>) -> std::option::Option<Vec<StockJsonA>> {
-    let mut out: Vec<StockJsonA> = Vec::new();
-    for symbol in list {
-        println!("{symbol}");
-        let url = format!("{}{}{}", SNIP0, symbol, SNIP1);
-        match get_stock_alpha(url).await {
-            Ok(s) => out.push(s),
-            Err(e) => {
-                println!("{e}");
-            }
-        }
-    }
-    Some(out)
-} */
 
 fn set_current_list(mut new_name: String) -> () {
     let path: std::path::PathBuf = match dirs::config_dir() {
