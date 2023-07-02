@@ -5,7 +5,6 @@ mod stocks;
 use std::fs::OpenOptions;
 use std::io::prelude::*;
 use std::io::{Error, ErrorKind};
-use std::net::{Shutdown, TcpStream};
 use stocks::Stocks;
 
 // Using const definitions for string literals to declutter code later on.
@@ -133,30 +132,22 @@ fn parse_args(args: &mut Vec<String>) -> Branch {
                 _ => Branch::None,
             }
         }
-        "exit" => {
-            close_server().unwrap();
-            Branch::None
-        }
         _ => Branch::Symbol(args.clone()),
     }
 }
 
-fn close_server() -> Result<(), Error> {
-    let mut client = TcpStream::connect("127.0.0.1:1080")?;
-    client.write("EXIT".as_bytes())?;
-    client.shutdown(Shutdown::Both)?;
-    Ok(())
-}
-
 fn write_to_list(symbols: Vec<String>, current_name: String) -> Result<(), Error> {
-    let mut client = TcpStream::connect("127.0.0.1:1080")?;
-    let mut message = format!("POST {} ", &current_name);
+    let list_name = format!("{current_name}.txt");
+    let mut message = String::new();
+    let mut list = OpenOptions::new()
+        .append(true)
+        .create(true)
+        .open(list_name)?;
     for symbol in symbols {
         let tmp = format!("{symbol} ");
         message.push_str(tmp.as_str());
     }
-    client.write(message.as_bytes())?;
-    client.shutdown(Shutdown::Both)?;
+    list.write(message.as_bytes())?;
     Ok(())
 }
 
@@ -200,11 +191,16 @@ fn edit_list(symbols: Vec<String>, current_name: String) -> Result<(), Error> {
 }
 
 fn read_list(current_name: String) -> std::option::Option<Vec<String>> {
-    let mut client = TcpStream::connect("127.0.0.1:1080").unwrap();
-    let message = format!("GET {current_name}");
-    client.write(message.as_bytes()).unwrap();
+    let list_name = format!("{current_name}.txt");
+    let mut list = match OpenOptions::new().read(true).open(list_name) {
+        Ok(f) => f,
+        Err(e) => {
+            println!("Error {e} opening file.");
+            return None;
+        }
+    };
     let mut s = String::new();
-    let contents: Option<&str> = match client.read_to_string(&mut s) {
+    let contents: Option<&str> = match list.read_to_string(&mut s) {
         Ok(0) => None,
         Ok(_) => Some(s.as_str()),
         Err(e) => panic!("Error {e} reading from file."),
